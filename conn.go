@@ -53,6 +53,7 @@ type conn struct {
 	latency      atomic.Value
 	pool         packet.Pool
 	proto        minecraft.Protocol
+	onClose      func()
 	closed       chan struct{}
 }
 
@@ -276,6 +277,9 @@ func (c *conn) Close() (err error) {
 		close(c.closed)
 		_ = c.conn.Close()
 		deleteCache(c.identityData.XUID)
+		if c.onClose != nil {
+			c.onClose()
+		}
 		return
 	}
 }

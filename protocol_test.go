@@ -8,7 +8,9 @@ import (
 	spectrumprotocol "github.com/cooldogedev/spectrum/protocol"
 	spectrumpacket "github.com/cooldogedev/spectrum/server/packet"
 	"github.com/golang/snappy"
+	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft"
+	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/login"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
@@ -82,5 +84,58 @@ func TestFlushWritesInternalPacket(t *testing.T) {
 	}
 	if err := <-errCh; err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestListenerTransferWritesInternalPacket(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	identity := uuid.New()
+	c := &conn{
+		conn:   client,
+		writer: spectrumprotocol.NewWriter(client),
+		proto:  minecraft.DefaultProtocol,
+		closed: make(chan struct{}),
+	}
+	l := &Listener{}
+	l.sessions.Store(identity, c)
+	c.onClose = func() { l.sessions.CompareAndDelete(identity, c) }
+	if !l.HasSession(identity) {
+		t.Fatal("listener did not report the active session")
+	}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- l.Transfer(identity, "bedwars:19143") }()
+	payload, err := spectrumprotocol.NewReader(server).ReadPacket()
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := snappy.Decode(nil, payload[1:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf := bytes.NewBuffer(decoded)
+	header := &packet.Header{}
+	if err := header.Read(buf); err != nil {
+		t.Fatal(err)
+	}
+	if header.PacketID != spectrumpacket.IDTransfer {
+		t.Fatalf("packet ID = %d, want %d", header.PacketID, spectrumpacket.IDTransfer)
+	}
+	transfer := &spectrumpacket.Transfer{}
+	transfer.Marshal(protocol.NewReader(buf, 0, false))
+	if transfer.Addr != "bedwars:19143" {
+		t.Fatalf("transfer address = %q", transfer.Addr)
+	}
+	if err := <-errCh; err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if l.HasSession(identity) {
+		t.Fatal("closed session remained registered")
 	}
 }

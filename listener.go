@@ -1,8 +1,14 @@
 package spectrum
 
 import (
+	"errors"
+	"fmt"
+	"sync"
+
 	tr "github.com/cooldogedev/spectrum-df/transport"
+	spectrumpacket "github.com/cooldogedev/spectrum/server/packet"
 	"github.com/df-mc/dragonfly/server/session"
+	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/login"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
@@ -11,6 +17,7 @@ import (
 type Listener struct {
 	transport tr.Transport
 	resolver  ProtocolResolver
+	sessions  sync.Map
 }
 
 // ProtocolResolver resolves the public client protocol forwarded by Spectrum.
@@ -62,11 +69,45 @@ func NewListenerWithResolver(addr string, transport tr.Transport, resolver Proto
 
 // Accept ...
 func (l *Listener) Accept() (session.Conn, error) {
-	c, err := l.transport.Accept()
+	stream, err := l.transport.Accept()
 	if err != nil {
 		return nil, err
 	}
-	return newConn(c, packet.NewClientPool(), l.resolver)
+	c, err := newConn(stream, packet.NewClientPool(), l.resolver)
+	if err != nil {
+		return nil, err
+	}
+	identity, err := uuid.Parse(c.IdentityData().Identity)
+	if err != nil {
+		_ = c.Close()
+		return nil, fmt.Errorf("parse player identity: %w", err)
+	}
+	l.sessions.Store(identity, c)
+	c.onClose = func() {
+		l.sessions.CompareAndDelete(identity, c)
+	}
+	return c, nil
+}
+
+// Transfer requests a seamless backend switch for an active Spectrum player.
+// The public RakNet connection remains open while Spectrum connects the player
+// to addr through its configured backend transport.
+func (l *Listener) Transfer(identity uuid.UUID, addr string) error {
+	if addr == "" {
+		return errors.New("transfer backend address is empty")
+	}
+	value, ok := l.sessions.Load(identity)
+	if !ok {
+		return fmt.Errorf("player %s has no active SpectrumDF session", identity)
+	}
+	return value.(*conn).WritePacket(&spectrumpacket.Transfer{Addr: addr})
+}
+
+// HasSession reports whether identity is currently connected through this
+// SpectrumDF listener.
+func (l *Listener) HasSession(identity uuid.UUID) bool {
+	_, ok := l.sessions.Load(identity)
+	return ok
 }
 
 // Disconnect ...
