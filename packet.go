@@ -3,6 +3,7 @@ package spectrum
 import (
 	"github.com/brentp/intintmap"
 	spectrumpacket "github.com/cooldogedev/spectrum/server/packet"
+	"github.com/sandertv/gophertunnel/minecraft"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
 
@@ -50,6 +51,14 @@ func RegisterPacketDecode(id uint32, value bool) {
 func shouldDecodePacket(packet uint32) bool {
 	_, ok := packetMap.Get(int64(packet))
 	return ok
+}
+
+// shouldDecodePacketForProtocol keeps native sessions on Spectrum's raw fast
+// path, but forces every historical session through the proxy's conversion
+// boundary. LevelChunk and other packets may contain already mapped payloads,
+// while their enclosing wire layouts still belong to the target protocol.
+func shouldDecodePacketForProtocol(packetID uint32, proto minecraft.Protocol) bool {
+	return proto.ID() != minecraft.DefaultProtocol.ID() || shouldDecodePacket(packetID)
 }
 
 func init() {

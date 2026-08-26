@@ -52,15 +52,18 @@ type conn struct {
 	shieldID     int32
 	latency      atomic.Value
 	pool         packet.Pool
+	proto        minecraft.Protocol
+	onClose      func()
 	closed       chan struct{}
 }
 
-func newConn(rwc io.ReadWriteCloser, pool packet.Pool) (*conn, error) {
+func newConn(rwc io.ReadWriteCloser, pool packet.Pool, resolver ProtocolResolver) (*conn, error) {
 	c := &conn{
 		conn:   rwc,
 		reader: spectrumprotocol.NewReader(rwc),
 		writer: spectrumprotocol.NewWriter(rwc),
 		pool:   pool,
+		proto:  minecraft.DefaultProtocol,
 		closed: make(chan struct{}),
 	}
 	connectionRequestPacket, err := c.expect(spectrumpacket.IDConnectionRequest)
@@ -86,6 +89,15 @@ func newConn(rwc io.ReadWriteCloser, pool packet.Pool) (*conn, error) {
 		_ = c.Close()
 		return nil, err
 	}
+	if resolver == nil {
+		resolver = NewProtocolResolver(nil)
+	}
+	selected, ok := resolver(connectionRequest.ProtocolID, c.clientData)
+	if !ok {
+		_ = c.Close()
+		return nil, fmt.Errorf("unsupported public client protocol %d for game version %q", connectionRequest.ProtocolID, c.clientData.GameVersion)
+	}
+	c.proto = selected
 
 	c.runtimeID = uint64(crc32.ChecksumIEEE([]byte(c.identityData.XUID)))
 	c.uniqueID = int64(c.runtimeID)
@@ -131,7 +143,7 @@ func (c *conn) WritePacket(pk packet.Packet) error {
 	}
 
 	var decodeByte byte
-	if shouldDecodePacket(pk.ID()) {
+	if shouldDecodePacketForProtocol(pk.ID(), c.proto) {
 		decodeByte = packetDecodeNeeded
 	} else {
 		decodeByte = packetDecodeNotNeeded
@@ -142,7 +154,14 @@ func (c *conn) WritePacket(pk packet.Packet) error {
 
 // Flush ...
 func (c *conn) Flush() error {
-	return nil
+	return c.WritePacket(&spectrumpacket.Flush{})
+}
+
+// Proto returns the public client protocol selected by Spectrum. Dragonfly
+// uses its optional capabilities for presentation-specific work such as chunk
+// palette encoding; packets on this backend connection are still native.
+func (c *conn) Proto() minecraft.Protocol {
+	return c.proto
 }
 
 // ClientData ...
@@ -258,6 +277,9 @@ func (c *conn) Close() (err error) {
 		close(c.closed)
 		_ = c.conn.Close()
 		deleteCache(c.identityData.XUID)
+		if c.onClose != nil {
+			c.onClose()
+		}
 		return
 	}
 }
@@ -369,11 +391,16 @@ func (c *conn) translatePacket(pk packet.Packet, serverSent bool) packet.Packet 
 	case *packet.ChangeMobProperty:
 		pk.EntityUniqueID = int64(c.translateRuntimeID(uint64(pk.EntityUniqueID), serverSent))
 	case *packet.ClientBoundMapItemData:
-		for i, x := range pk.TrackedObjects {
-			if x.Type == protocol.MapObjectTypeEntity {
-				x.EntityUniqueID = c.translateUniqueID(x.EntityUniqueID, serverSent)
-				pk.TrackedObjects[i] = x
+		if trackedObjects, ok := pk.TrackedObjects.Value(); ok {
+			for i, x := range trackedObjects {
+				if x.Type == protocol.MapObjectTypeEntity {
+					if entityUniqueID, ok := x.EntityUniqueID.Value(); ok {
+						x.EntityUniqueID = protocol.Option(c.translateUniqueID(entityUniqueID, serverSent))
+					}
+					trackedObjects[i] = x
+				}
 			}
+			pk.TrackedObjects = protocol.Option(trackedObjects)
 		}
 	case *packet.CommandBlockUpdate:
 		if !pk.Block {
@@ -433,8 +460,8 @@ func (c *conn) translatePacket(pk packet.Packet, serverSent bool) packet.Packet 
 	case *packet.PlayerAction:
 		pk.EntityRuntimeID = c.translateRuntimeID(pk.EntityRuntimeID, serverSent)
 	case *packet.PlayerAuthInput:
-		if pk.InputData.Load(packet.InputFlagClientPredictedVehicle) {
-			pk.ClientPredictedVehicle = c.translateUniqueID(pk.ClientPredictedVehicle, serverSent)
+		if predictedVehicle, ok := pk.ClientPredictedVehicle.Value(); ok {
+			pk.ClientPredictedVehicle = protocol.Option(c.translateUniqueID(predictedVehicle, serverSent))
 		}
 	case *packet.PlayerList:
 		for i := range pk.Entries {
@@ -472,7 +499,9 @@ func (c *conn) translatePacket(pk packet.Packet, serverSent bool) packet.Packet 
 	case *packet.SetScoreboardIdentity:
 		if pk.ActionType != packet.ScoreboardIdentityActionClear {
 			for i := range pk.Entries {
-				pk.Entries[i].EntityUniqueID = c.translateUniqueID(pk.Entries[i].EntityUniqueID, serverSent)
+				if entityUniqueID, ok := pk.Entries[i].EntityUniqueID.Value(); ok {
+					pk.Entries[i].EntityUniqueID = protocol.Option(c.translateUniqueID(entityUniqueID, serverSent))
+				}
 			}
 		}
 	case *packet.ShowCredits:
