@@ -2,6 +2,8 @@ package spectrum
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"net"
 	"testing"
 
@@ -14,6 +16,33 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol/login"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
+
+type queuedTransport struct {
+	streams []io.ReadWriteCloser
+	index   int
+}
+
+func (*queuedTransport) Listen(string) error { return nil }
+func (t *queuedTransport) Accept() (io.ReadWriteCloser, error) {
+	if t.index >= len(t.streams) {
+		return nil, errors.New("transport exhausted")
+	}
+	stream := t.streams[t.index]
+	t.index++
+	return stream, nil
+}
+func (*queuedTransport) Close() error { return nil }
+
+type trackedStream struct {
+	closed bool
+}
+
+func (*trackedStream) Read([]byte) (int, error)    { return 0, io.EOF }
+func (*trackedStream) Write(p []byte) (int, error) { return len(p), nil }
+func (s *trackedStream) Close() error {
+	s.closed = true
+	return nil
+}
 
 type protocolWithID struct {
 	minecraft.Protocol
@@ -34,6 +63,48 @@ func TestProtocolResolver(t *testing.T) {
 	}
 	if _, ok := resolver(-1, login.ClientData{}); ok {
 		t.Fatal("unexpected resolution for unsupported protocol")
+	}
+}
+
+func TestListenerSkipsFailedConnectionHandshakes(t *testing.T) {
+	broken, invalid, valid := &trackedStream{}, &trackedStream{}, &trackedStream{}
+	transport := &queuedTransport{streams: []io.ReadWriteCloser{broken, invalid, valid}}
+	validIdentity := uuid.New()
+	calls := 0
+	listener := &Listener{
+		transport: transport,
+		resolver:  NewProtocolResolver(nil),
+		connect: func(stream io.ReadWriteCloser, _ packet.Pool, _ ProtocolResolver) (*conn, error) {
+			calls++
+			switch calls {
+			case 1:
+				return nil, errors.New("handshake closed")
+			case 2:
+				return &conn{conn: stream, identityData: login.IdentityData{Identity: "invalid"}, closed: make(chan struct{})}, nil
+			default:
+				return &conn{conn: stream, identityData: login.IdentityData{Identity: validIdentity.String()}, closed: make(chan struct{})}, nil
+			}
+		},
+	}
+
+	accepted, err := listener.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := accepted.IdentityData().Identity; got != validIdentity.String() {
+		t.Fatalf("accepted identity = %q, want %q", got, validIdentity)
+	}
+	if calls != 3 || transport.index != 3 {
+		t.Fatalf("connection attempts = %d/%d, want 3/3", calls, transport.index)
+	}
+	if !broken.closed || !invalid.closed {
+		t.Fatal("failed connection streams were not closed")
+	}
+	if valid.closed {
+		t.Fatal("accepted connection stream was closed")
+	}
+	if err := accepted.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 
