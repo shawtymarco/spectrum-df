@@ -3,6 +3,8 @@ package spectrum
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"sync"
 
 	tr "github.com/cooldogedev/spectrum-df/transport"
@@ -17,6 +19,7 @@ import (
 type Listener struct {
 	transport tr.Transport
 	resolver  ProtocolResolver
+	connect   func(io.ReadWriteCloser, packet.Pool, ProtocolResolver) (*conn, error)
 	sessions  sync.Map
 }
 
@@ -64,29 +67,43 @@ func NewListenerWithResolver(addr string, transport tr.Transport, resolver Proto
 	if err := transport.Listen(addr); err != nil {
 		return nil, err
 	}
-	return &Listener{transport: transport, resolver: resolver}, nil
+	return &Listener{transport: transport, resolver: resolver, connect: newConn}, nil
 }
 
 // Accept ...
 func (l *Listener) Accept() (session.Conn, error) {
-	stream, err := l.transport.Accept()
-	if err != nil {
-		return nil, err
+	connect := l.connect
+	if connect == nil {
+		connect = newConn
 	}
-	c, err := newConn(stream, packet.NewClientPool(), l.resolver)
-	if err != nil {
-		return nil, err
+	for {
+		stream, err := l.transport.Accept()
+		if err != nil {
+			// Transport errors represent the listener lifecycle. Dragonfly may
+			// safely treat these as terminal and stop accepting connections.
+			return nil, err
+		}
+		c, err := connect(stream, packet.NewClientPool(), l.resolver)
+		if err != nil {
+			// A backend crash may race a proxy fallback and close only this new
+			// stream during its handshake. It must not terminate the backend's
+			// shared Dragonfly listener.
+			_ = stream.Close()
+			slog.Warn("discarding incomplete SpectrumDF connection", "err", err)
+			continue
+		}
+		identity, err := uuid.Parse(c.IdentityData().Identity)
+		if err != nil {
+			_ = c.Close()
+			slog.Warn("discarding SpectrumDF connection with invalid identity", "err", fmt.Errorf("parse player identity: %w", err))
+			continue
+		}
+		l.sessions.Store(identity, c)
+		c.onClose = func() {
+			l.sessions.CompareAndDelete(identity, c)
+		}
+		return c, nil
 	}
-	identity, err := uuid.Parse(c.IdentityData().Identity)
-	if err != nil {
-		_ = c.Close()
-		return nil, fmt.Errorf("parse player identity: %w", err)
-	}
-	l.sessions.Store(identity, c)
-	c.onClose = func() {
-		l.sessions.CompareAndDelete(identity, c)
-	}
-	return c, nil
 }
 
 // Transfer requests a seamless backend switch for an active Spectrum player.
