@@ -110,6 +110,16 @@ func (l *Listener) Accept() (session.Conn, error) {
 // The public RakNet connection remains open while Spectrum connects the player
 // to addr through its configured backend transport.
 func (l *Listener) Transfer(identity uuid.UUID, addr string) error {
+	return l.transfer(identity, addr, false)
+}
+
+// TransferReady requests a backend switch whose target must publish
+// BackendReady before Spectrum exposes its final state to the client.
+func (l *Listener) TransferReady(identity uuid.UUID, addr string) error {
+	return l.transfer(identity, addr, true)
+}
+
+func (l *Listener) transfer(identity uuid.UUID, addr string, waitForReady bool) error {
 	if addr == "" {
 		return errors.New("transfer backend address is empty")
 	}
@@ -117,7 +127,7 @@ func (l *Listener) Transfer(identity uuid.UUID, addr string) error {
 	if !ok {
 		return fmt.Errorf("player %s has no active SpectrumDF session", identity)
 	}
-	return value.(*conn).WritePacket(&spectrumpacket.Transfer{Addr: addr})
+	return value.(*conn).WritePacket(&spectrumpacket.Transfer{Addr: addr, WaitForReady: waitForReady})
 }
 
 // HasSession reports whether identity is currently connected through this

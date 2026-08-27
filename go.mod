@@ -13,9 +13,9 @@ require (
 	github.com/sandertv/gophertunnel v1.59.1-0.20260820160943-7f058e5ddc39
 )
 
-replace github.com/cooldogedev/spectrum => github.com/shawtymarco/spectrum v0.0.45-0.20260825041531-cdeb128f80dc
+replace github.com/cooldogedev/spectrum => github.com/shawtymarco/spectrum v0.0.45-0.20260827060554-b65e35dfb571
 
-replace github.com/df-mc/dragonfly => github.com/shawtymarco/dragonfly v0.11.3-0.20260824230901-dc54cf36e662
+replace github.com/df-mc/dragonfly => github.com/shawtymarco/dragonfly v0.11.3-0.20260827060711-4c3818c70343
 
 replace github.com/sandertv/gophertunnel => github.com/shawtymarco/gophertunnel v1.57.1-0.20260824230810-823172d1d90e
 

@@ -119,6 +119,9 @@ func TestShouldDecodePacketForProtocol(t *testing.T) {
 	if !shouldDecodePacketForProtocol(spectrumpacket.IDFlush, minecraft.DefaultProtocol) {
 		t.Fatal("internal flush packet must always be decoded")
 	}
+	if !shouldDecodePacketForProtocol(spectrumpacket.IDBackendReady, minecraft.DefaultProtocol) {
+		t.Fatal("internal backend-ready packet must always be decoded")
+	}
 }
 
 func TestFlushWritesInternalPacket(t *testing.T) {
@@ -200,6 +203,9 @@ func TestListenerTransferWritesInternalPacket(t *testing.T) {
 	if transfer.Addr != "bedwars:19143" {
 		t.Fatalf("transfer address = %q", transfer.Addr)
 	}
+	if transfer.WaitForReady {
+		t.Fatal("ordinary transfer unexpectedly requested a readiness barrier")
+	}
 	if err := <-errCh; err != nil {
 		t.Fatal(err)
 	}
@@ -208,5 +214,40 @@ func TestListenerTransferWritesInternalPacket(t *testing.T) {
 	}
 	if l.HasSession(identity) {
 		t.Fatal("closed session remained registered")
+	}
+}
+
+func TestListenerReadyTransferWritesBarrierFlag(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	identity := uuid.New()
+	c := &conn{conn: client, writer: spectrumprotocol.NewWriter(client), proto: minecraft.DefaultProtocol, closed: make(chan struct{})}
+	l := &Listener{}
+	l.sessions.Store(identity, c)
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- l.TransferReady(identity, "replay:19144") }()
+	payload, err := spectrumprotocol.NewReader(server).ReadPacket()
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := snappy.Decode(nil, payload[1:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	buffer := bytes.NewBuffer(decoded)
+	header := &packet.Header{}
+	if err := header.Read(buffer); err != nil {
+		t.Fatal(err)
+	}
+	transfer := &spectrumpacket.Transfer{}
+	transfer.Marshal(protocol.NewReader(buffer, 0, false))
+	if header.PacketID != spectrumpacket.IDTransfer || transfer.Addr != "replay:19144" || !transfer.WaitForReady {
+		t.Fatalf("ready transfer = id:%d packet:%#v", header.PacketID, transfer)
+	}
+	if err := <-errCh; err != nil {
+		t.Fatal(err)
 	}
 }
