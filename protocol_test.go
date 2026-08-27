@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"testing"
+	"time"
 
 	spectrumprotocol "github.com/cooldogedev/spectrum/protocol"
 	spectrumpacket "github.com/cooldogedev/spectrum/server/packet"
@@ -63,6 +64,16 @@ func TestProtocolResolver(t *testing.T) {
 	}
 	if _, ok := resolver(-1, login.ClientData{}); ok {
 		t.Fatal("unexpected resolution for unsupported protocol")
+	}
+}
+
+func TestLatencySamplePreservesDragonflyHalfRTTContract(t *testing.T) {
+	halfRTT, roundTrip := latencySample(40, 1_000, 1_015)
+	if got, want := roundTrip, int64(70); got != want {
+		t.Fatalf("round-trip latency = %dms, want %dms", got, want)
+	}
+	if got, want := halfRTT, 35*time.Millisecond; got != want {
+		t.Fatalf("Dragonfly latency = %s, want %s", got, want)
 	}
 }
 

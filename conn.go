@@ -118,12 +118,26 @@ func (c *conn) ReadPacket() (packet.Packet, error) {
 	}
 
 	if pk, ok := pk.(*spectrumpacket.Latency); ok {
-		latency := (time.Now().UnixMilli() - pk.Timestamp) + pk.Latency
-		c.latency.Store(time.Duration(latency) * time.Millisecond)
-		_ = c.WritePacket(&spectrumpacket.Latency{Timestamp: 0, Latency: latency})
+		halfRTT, roundTrip := latencySample(pk.Latency, pk.Timestamp, time.Now().UnixMilli())
+		// Dragonfly's Conn.Latency contract is one-way latency. Player-facing
+		// ping commands multiply it by two to display RTT.
+		c.latency.Store(halfRTT)
+		_ = c.WritePacket(&spectrumpacket.Latency{Timestamp: 0, Latency: roundTrip})
 		return c.ReadPacket()
 	}
 	return pk, nil
+}
+
+func latencySample(clientRTT, sentAt, receivedAt int64) (halfRTT time.Duration, roundTrip int64) {
+	if clientRTT < 0 {
+		clientRTT = 0
+	}
+	backendOneWay := receivedAt - sentAt
+	if backendOneWay < 0 {
+		backendOneWay = 0
+	}
+	roundTrip = clientRTT + backendOneWay*2
+	return time.Duration(roundTrip) * time.Millisecond / 2, roundTrip
 }
 
 // WritePacket ...
