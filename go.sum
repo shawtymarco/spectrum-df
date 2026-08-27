@@ -98,8 +98,8 @@ github.com/shawtymarco/dragonfly v0.11.3-0.20260827060711-4c3818c70343 h1:3TiTR1
 github.com/shawtymarco/dragonfly v0.11.3-0.20260827060711-4c3818c70343/go.mod h1:S7MdbDZneE788ppMQUldS/WJvntBVFXi35lxUrt1Y8E=
 github.com/shawtymarco/gophertunnel v1.57.1-0.20260824230810-823172d1d90e h1:xYHBqz2ZKC421o1U0VMLLgrfvSKsv7gM766U/BYM+pw=
 github.com/shawtymarco/gophertunnel v1.57.1-0.20260824230810-823172d1d90e/go.mod h1:JMKsf8DmVmn+qEVJ1IA9m7zEo9qHJ3ZN6IEvySEk9bs=
-github.com/shawtymarco/spectrum v0.0.45-0.20260827061843-62109b0c34f5 h1:uOcJAET2E35039uUy1O84I/lM8fqHNU7W6WANUOohZc=
-github.com/shawtymarco/spectrum v0.0.45-0.20260827061843-62109b0c34f5/go.mod h1:EqOsqtuh+9S3mRp0QQEjCS+zrFlJGYWgDiM0PMH3cSc=
+github.com/shawtymarco/spectrum v0.0.45-0.20260827080032-15a8145d1b6f h1:hwLiM2BjNWK8inVJbHI3wG9imcrhUCvBj1mawOyEE8o=
+github.com/shawtymarco/spectrum v0.0.45-0.20260827080032-15a8145d1b6f/go.mod h1:EqOsqtuh+9S3mRp0QQEjCS+zrFlJGYWgDiM0PMH3cSc=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/wlynxg/anet v0.0.5 h1:J3VJGi1gvo0JwZ/P1/Yc/8p63SoW98B5dHkYDmpgvvU=
