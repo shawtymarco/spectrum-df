@@ -15,6 +15,7 @@ import (
 
 	spectrumprotocol "github.com/cooldogedev/spectrum/protocol"
 	spectrumpacket "github.com/cooldogedev/spectrum/server/packet"
+	dfsession "github.com/df-mc/dragonfly/server/session"
 	"github.com/golang/snappy"
 	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft"
@@ -26,6 +27,7 @@ import (
 const (
 	packetDecodeNeeded = uint8(iota)
 	packetDecodeNotNeeded
+	packetTraceVersion = 1
 )
 
 var bufferPool = sync.Pool{
@@ -55,6 +57,9 @@ type conn struct {
 	proto        minecraft.Protocol
 	onClose      func()
 	closed       chan struct{}
+	traceMu      sync.Mutex
+	pendingTrace dfsession.PacketTrace
+	tracePending bool
 }
 
 func newConn(rwc io.ReadWriteCloser, pool packet.Pool, resolver ProtocolResolver) (*conn, error) {
@@ -126,6 +131,34 @@ func (c *conn) ReadPacket() (packet.Packet, error) {
 		return c.ReadPacket()
 	}
 	return pk, nil
+}
+
+// ConsumePacketTrace returns metadata attached to the packet most recently
+// returned by ReadPacket.
+func (c *conn) ConsumePacketTrace() (dfsession.PacketTrace, bool) {
+	c.traceMu.Lock()
+	defer c.traceMu.Unlock()
+	if !c.tracePending {
+		return dfsession.PacketTrace{}, false
+	}
+	trace := c.pendingTrace
+	c.pendingTrace, c.tracePending = dfsession.PacketTrace{}, false
+	return trace, true
+}
+
+// WritePacketTraceResult writes an ordered internal result marker to Spectrum.
+func (c *conn) WritePacketTraceResult(result dfsession.PacketTraceResult) error {
+	return c.WritePacket(&spectrumpacket.TraceResult{
+		Version:           packetTraceVersion,
+		TraceID:           result.ID,
+		Accepted:          result.Accepted,
+		Terminal:          result.Terminal,
+		FeedbackComplete:  result.FeedbackComplete,
+		Role:              result.Role,
+		Reason:            result.Reason,
+		QueueNanoseconds:  result.QueueDuration.Nanoseconds(),
+		HandleNanoseconds: result.HandlerDuration.Nanoseconds(),
+	})
 }
 
 func latencySample(clientRTT, sentAt, receivedAt int64) (halfRTT time.Duration, roundTrip int64) {
@@ -336,8 +369,41 @@ func (c *conn) read() (pk packet.Packet, err error) {
 	}
 	pk = factory()
 	pk.Marshal(protocol.NewReader(buf, c.shieldID, false))
+	if traced, ok := pk.(*spectrumpacket.TracedPacket); ok {
+		if traced.Version != packetTraceVersion {
+			return nil, fmt.Errorf("unsupported traced packet version %d", traced.Version)
+		}
+		inner, err := c.decodeTracedPacket(traced.Payload)
+		if err != nil {
+			return nil, err
+		}
+		c.traceMu.Lock()
+		c.pendingTrace = dfsession.PacketTrace{ID: traced.TraceID, ReceivedAt: time.Now()}
+		c.tracePending = true
+		c.traceMu.Unlock()
+		return c.translatePacket(inner, false), nil
+	}
 	pk = c.translatePacket(pk, false)
 	return
+}
+
+func (c *conn) decodeTracedPacket(payload []byte) (packet.Packet, error) {
+	buf := bytes.NewBuffer(payload)
+	header := headerPool.Get().(*packet.Header)
+	defer headerPool.Put(header)
+	if err := header.Read(buf); err != nil {
+		return nil, fmt.Errorf("read traced packet header: %w", err)
+	}
+	factory, ok := c.pool[header.PacketID]
+	if !ok {
+		return nil, fmt.Errorf("unknown traced packet ID %d", header.PacketID)
+	}
+	pk := factory()
+	pk.Marshal(protocol.NewReader(buf, c.shieldID, false))
+	if buf.Len() != 0 {
+		return nil, fmt.Errorf("traced packet %d has %d unread bytes", header.PacketID, buf.Len())
+	}
+	return pk, nil
 }
 
 // expect reads a packet from the connection and expects it to have the ID passed.

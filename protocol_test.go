@@ -10,6 +10,7 @@ import (
 
 	spectrumprotocol "github.com/cooldogedev/spectrum/protocol"
 	spectrumpacket "github.com/cooldogedev/spectrum/server/packet"
+	dfsession "github.com/df-mc/dragonfly/server/session"
 	"github.com/golang/snappy"
 	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft"
@@ -132,6 +133,78 @@ func TestShouldDecodePacketForProtocol(t *testing.T) {
 	}
 	if !shouldDecodePacketForProtocol(spectrumpacket.IDBackendReady, minecraft.DefaultProtocol) {
 		t.Fatal("internal backend-ready packet must always be decoded")
+	}
+	if !shouldDecodePacketForProtocol(spectrumpacket.IDTraceResult, minecraft.DefaultProtocol) {
+		t.Fatal("internal trace result must always be decoded")
+	}
+}
+
+func TestPacketTraceIsConsumedOnce(t *testing.T) {
+	c := &conn{pendingTrace: dfsession.PacketTrace{ID: 42, ReceivedAt: time.Now()}, tracePending: true}
+	trace, ok := c.ConsumePacketTrace()
+	if !ok || trace.ID != 42 {
+		t.Fatalf("trace = %#v, %v", trace, ok)
+	}
+	if _, ok := c.ConsumePacketTrace(); ok {
+		t.Fatal("trace was returned more than once")
+	}
+}
+
+func TestDecodeTracedPacketUsesNativeClientPool(t *testing.T) {
+	c := &conn{pool: packet.NewClientPool()}
+	want := &packet.NetworkStackLatency{Timestamp: 123, NeedsResponse: true}
+	buffer := bytes.NewBuffer(nil)
+	header := &packet.Header{PacketID: want.ID()}
+	if err := header.Write(buffer); err != nil {
+		t.Fatal(err)
+	}
+	want.Marshal(protocol.NewWriter(buffer, 0))
+	decoded, err := c.decodeTracedPacket(buffer.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := decoded.(*packet.NetworkStackLatency)
+	if !ok || got.Timestamp != want.Timestamp || got.NeedsResponse != want.NeedsResponse {
+		t.Fatalf("decoded packet = %#v", decoded)
+	}
+}
+
+func TestTraceResultWritesInternalPacket(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	c := &conn{conn: client, writer: spectrumprotocol.NewWriter(client), proto: minecraft.DefaultProtocol, closed: make(chan struct{})}
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- c.WritePacketTraceResult(dfsession.PacketTraceResult{
+			ID: 7, Accepted: true, Terminal: true, FeedbackComplete: true,
+			Role: dfsession.PacketTraceRoleAttacker, Reason: dfsession.PacketTraceReasonAccepted,
+			QueueDuration: 2 * time.Millisecond, HandlerDuration: 3 * time.Millisecond,
+		})
+	}()
+	payload, err := spectrumprotocol.NewReader(server).ReadPacket()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload[0] != packetDecodeNeeded {
+		t.Fatalf("decode marker = %d, want %d", payload[0], packetDecodeNeeded)
+	}
+	decoded, err := snappy.Decode(nil, payload[1:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	buffer := bytes.NewBuffer(decoded)
+	header := &packet.Header{}
+	if err := header.Read(buffer); err != nil {
+		t.Fatal(err)
+	}
+	result := &spectrumpacket.TraceResult{}
+	result.Marshal(protocol.NewReader(buffer, 0, false))
+	if header.PacketID != spectrumpacket.IDTraceResult || result.TraceID != 7 || !result.Accepted || result.QueueNanoseconds != int64(2*time.Millisecond) {
+		t.Fatalf("trace result = id:%d packet:%#v", header.PacketID, result)
+	}
+	if err := <-errCh; err != nil {
+		t.Fatal(err)
 	}
 }
 

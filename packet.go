@@ -14,6 +14,7 @@ var internalPackets = []uint32{
 	spectrumpacket.IDTransfer,
 	spectrumpacket.IDUpdateCache,
 	spectrumpacket.IDBackendReady,
+	spectrumpacket.IDTraceResult,
 
 	packet.IDAddActor,
 	packet.IDAddItemActor,
