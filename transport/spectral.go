@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/cooldogedev/spectral"
 )
@@ -12,6 +13,8 @@ type Spectral struct {
 	listener *spectral.Listener
 	incoming chan io.ReadWriteCloser
 	closed   chan struct{}
+	once     sync.Once
+	closeErr error
 }
 
 func NewSpectral() *Spectral {
@@ -53,23 +56,28 @@ func (s *Spectral) Accept() (io.ReadWriteCloser, error) {
 
 // Close ...
 func (s *Spectral) Close() (err error) {
-	select {
-	case <-s.closed:
-		return errors.New("already closed")
-	default:
+	s.once.Do(func() {
 		close(s.closed)
-		_ = s.listener.Close()
-		return
-	}
+		s.closeErr = s.listener.Close()
+	})
+	return s.closeErr
 }
 
 func (s *Spectral) handle(connection spectral.Connection) {
 	defer connection.CloseWithError(0, "failed to accept stream")
 	for {
-		stream, err := connection.AcceptStream(context.Background())
+		stream, err := connection.AcceptStream(connection.Context())
 		if err != nil {
 			return
 		}
-		s.incoming <- stream
+		select {
+		case s.incoming <- stream:
+		case <-s.closed:
+			_ = stream.Close()
+			return
+		case <-connection.Context().Done():
+			_ = stream.Close()
+			return
+		}
 	}
 }

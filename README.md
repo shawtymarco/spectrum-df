@@ -25,6 +25,23 @@ client protocol to Dragonfly for target-aware chunk palette encoding.
 > Spectrum performs wire conversion. SpectrumDF supplies the selected adapter
 > to Dragonfly only where the live server state must be encoded per client.
 
+## CRITICAL: incomplete handshakes must not block new logins
+
+The transport accept loop must never wait for a stream's first
+`ConnectionRequest`. A cancelled proxy fallback can leave a silent stream on a
+shared peer while existing sessions and ordinary readiness remain healthy.
+Handshakes therefore run in at most 64 independent workers, each with a
+10-second deadline covering frame reads, the response, and application delivery.
+Timeouts close the stream and emit an error with the phase, elapsed time and
+deadline; malformed requests emit a warning. Capacity exhaustion is rejected
+with a rate-limited error. Closing the listener interrupts and joins all pending
+handshakes. Transport stream close must interrupt reads, including QUIC reads.
+The Spectral dependency must also close cancelled and late-accepted stream opens.
+
+Validate the library and transports with `go test . ./transport`,
+`go vet . ./transport`, and `go test -race . ./transport`. The example directory
+contains separate standalone programs and is not one buildable Go package.
+
 ## 🚀 Usage
 
 Build the same registry-aware protocol set as the public Spectrum listener and

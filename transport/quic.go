@@ -90,6 +90,24 @@ func (q *QUIC) handle(connection *quic.Conn) {
 		if err != nil {
 			return
 		}
-		q.incoming <- stream
+		wrapped := &quicStream{Stream: stream}
+		select {
+		case q.incoming <- wrapped:
+		case <-q.closed:
+			_ = wrapped.Close()
+			return
+		case <-connection.Context().Done():
+			_ = wrapped.Close()
+			return
+		}
 	}
+}
+
+type quicStream struct{ *quic.Stream }
+
+func (s *quicStream) Close() error {
+	// quic.Stream.Close only finishes writes; handshake deadlines must also
+	// release a read waiting for the first application packet.
+	s.CancelRead(0)
+	return s.Stream.Close()
 }

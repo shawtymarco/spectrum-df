@@ -1,11 +1,12 @@
 package spectrum
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"sync"
+	"time"
 
 	tr "github.com/cooldogedev/spectrum-df/transport"
 	spectrumpacket "github.com/cooldogedev/spectrum/server/packet"
@@ -21,6 +22,16 @@ type Listener struct {
 	resolver  ProtocolResolver
 	connect   func(io.ReadWriteCloser, packet.Pool, ProtocolResolver) (*conn, error)
 	sessions  sync.Map
+	startOnce sync.Once
+	closeOnce sync.Once
+	ctx       context.Context
+	cancel    context.CancelCauseFunc
+	incoming  chan *conn
+	done      chan struct{}
+	closeErr  error
+	// Set only before the first Accept or Close. Zero uses the safe defaults.
+	handshakeTimeout time.Duration
+	handshakeLimit   int
 }
 
 // ProtocolResolver resolves the public client protocol forwarded by Spectrum.
@@ -72,35 +83,14 @@ func NewListenerWithResolver(addr string, transport tr.Transport, resolver Proto
 
 // Accept ...
 func (l *Listener) Accept() (session.Conn, error) {
-	connect := l.connect
-	if connect == nil {
-		connect = newConn
-	}
-	for {
-		stream, err := l.transport.Accept()
-		if err != nil {
-			// Transport errors represent the listener lifecycle. Dragonfly may
-			// safely treat these as terminal and stop accepting connections.
-			return nil, err
-		}
-		c, err := connect(stream, packet.NewClientPool(), l.resolver)
-		if err != nil {
-			// A backend crash may race a proxy fallback and close only this new
-			// stream during its handshake. It must not terminate the backend's
-			// shared Dragonfly listener.
-			_ = stream.Close()
-			slog.Warn("discarding incomplete SpectrumDF connection", "err", err)
-			continue
-		}
-		identity, err := uuid.Parse(c.IdentityData().Identity)
-		if err != nil {
+	l.start()
+	select {
+	case <-l.ctx.Done():
+		return nil, context.Cause(l.ctx)
+	case c := <-l.incoming:
+		if err := context.Cause(l.ctx); err != nil {
 			_ = c.Close()
-			slog.Warn("discarding SpectrumDF connection with invalid identity", "err", fmt.Errorf("parse player identity: %w", err))
-			continue
-		}
-		l.sessions.Store(identity, c)
-		c.onClose = func() {
-			l.sessions.CompareAndDelete(identity, c)
+			return nil, err
 		}
 		return c, nil
 	}
@@ -148,5 +138,11 @@ func (l *Listener) Disconnect(conn session.Conn, reason string) error {
 
 // Close ...
 func (l *Listener) Close() error {
-	return l.transport.Close()
+	l.start()
+	l.closeOnce.Do(func() {
+		l.cancel(errors.New("SpectrumDF listener closed"))
+		l.closeErr = l.transport.Close()
+		<-l.done
+	})
+	return l.closeErr
 }
