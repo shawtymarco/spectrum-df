@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -57,6 +58,7 @@ type conn struct {
 	proto        minecraft.Protocol
 	onClose      func()
 	closed       chan struct{}
+	closeOnce    sync.Once
 	traceMu      sync.Mutex
 	pendingTrace dfsession.PacketTrace
 	tracePending bool
@@ -242,7 +244,30 @@ func (c *conn) Latency() time.Duration {
 }
 
 // StartGameContext ...
-func (c *conn) StartGameContext(_ context.Context, data minecraft.GameData) (err error) {
+func (c *conn) StartGameContext(ctx context.Context, data minecraft.GameData) (err error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultHandshakeTimeout)
+	defer cancel()
+	started, phase := time.Now(), "start_game"
+	closed := make(chan struct{})
+	stopClose := context.AfterFunc(ctx, func() {
+		_ = c.conn.Close()
+		close(closed)
+	})
+	defer func() {
+		if !stopClose() {
+			<-closed
+		}
+		if cause := context.Cause(ctx); cause != nil {
+			err = cause
+		}
+		if err != nil {
+			_ = c.Close()
+			err = fmt.Errorf("spawn handshake %s: %w", phase, err)
+			slog.Warn("SpectrumDF spawn handshake failed", "player", c.identityData.Identity,
+				"protocol_id", c.proto.ID(), "phase", phase,
+				"duration_ms", time.Since(started).Milliseconds(), "err", err)
+		}
+	}()
 	for _, item := range data.Items {
 		if item.Name == "minecraft:shield" {
 			c.shieldID = int32(item.RuntimeID)
@@ -293,22 +318,27 @@ func (c *conn) StartGameContext(_ context.Context, data minecraft.GameData) (err
 		return err
 	}
 
+	phase = "item_registry"
 	if err = c.WritePacket(&packet.ItemRegistry{Items: data.Items}); err != nil {
 		return err
 	}
 
+	phase = "request_chunk_radius"
 	if _, err = c.expect(packet.IDRequestChunkRadius); err != nil {
 		return err
 	}
 
+	phase = "chunk_radius_updated"
 	if err := c.WritePacket(&packet.ChunkRadiusUpdated{ChunkRadius: 16}); err != nil {
 		return err
 	}
 
+	phase = "play_status"
 	if err := c.WritePacket(&packet.PlayStatus{Status: packet.PlayStatusLoginSuccess}); err != nil {
 		return err
 	}
 
+	phase = "player_initialised"
 	if _, err = c.expect(packet.IDSetLocalPlayerAsInitialised); err != nil {
 		return err
 	}
@@ -317,18 +347,15 @@ func (c *conn) StartGameContext(_ context.Context, data minecraft.GameData) (err
 
 // Close ...
 func (c *conn) Close() (err error) {
-	select {
-	case <-c.closed:
-		return errors.New("connection already closed")
-	default:
+	c.closeOnce.Do(func() {
 		close(c.closed)
 		_ = c.conn.Close()
 		deleteCache(c.identityData.XUID)
 		if c.onClose != nil {
 			c.onClose()
 		}
-		return
-	}
+	})
+	return nil
 }
 
 // read reads a packet from the reader and returns it.
@@ -408,15 +435,15 @@ func (c *conn) decodeTracedPacket(payload []byte) (packet.Packet, error) {
 
 // expect reads a packet from the connection and expects it to have the ID passed.
 func (c *conn) expect(id uint32) (packet.Packet, error) {
-	pk, err := c.ReadPacket()
-	if err != nil {
-		return nil, err
+	for {
+		pk, err := c.ReadPacket()
+		if err != nil {
+			return nil, err
+		}
+		if pk.ID() == id {
+			return pk, nil
+		}
 	}
-
-	if pk.ID() == id {
-		return pk, nil
-	}
-	return c.expect(id)
 }
 
 // translatePacket processes and translates entity identifiers in the given packet.

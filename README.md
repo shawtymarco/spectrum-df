@@ -38,6 +38,12 @@ with a rate-limited error. Closing the listener interrupts and joins all pending
 handshakes. Transport stream close must interrupt reads, including QUIC reads.
 The Spectral dependency must also close cancelled and late-accepted stream opens.
 
+The subsequent `StartGameContext` exchange has its own 10-second ceiling and
+honours earlier caller cancellation. Closing its stream interrupts both writes
+and reads, including the chunk-radius and player-initialisation waits. Failed
+spawns log the player UUID, protocol, phase and elapsed time. A successful spawn
+detaches its cancellation hook; concurrent close paths run cleanup once.
+
 Validate the library and transports with `go test . ./transport`,
 `go vet . ./transport`, and `go test -race . ./transport`. The example directory
 contains separate standalone programs and is not one buildable Go package.
