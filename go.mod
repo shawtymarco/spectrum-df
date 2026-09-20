@@ -6,20 +6,20 @@ require (
 	github.com/brentp/intintmap v0.0.0-20251106190759-56907b1f8479
 	github.com/cooldogedev/spectral v0.0.5
 	github.com/cooldogedev/spectrum v0.0.44
-	github.com/df-mc/dragonfly v0.11.0
+	github.com/df-mc/dragonfly v0.11.5
 	github.com/golang/snappy v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/quic-go/quic-go v0.60.0
-	github.com/sandertv/gophertunnel v1.59.1-0.20260820160943-7f058e5ddc39
+	github.com/sandertv/gophertunnel v1.62.0
 )
 
-replace github.com/cooldogedev/spectrum => github.com/shawtymarco/spectrum v0.0.45-0.20260827230239-33cfdb07c951
+replace github.com/cooldogedev/spectrum => github.com/shawtymarco/spectrum v0.0.45-0.20260920123430-6af494dabb01
 
 replace github.com/cooldogedev/spectral => github.com/shawtymarco/spectral v0.0.0-20260910165855-64f0788a8ea5
 
-replace github.com/df-mc/dragonfly => github.com/shawtymarco/dragonfly v0.11.3-0.20260827230220-d58dd3f1f9c1
+replace github.com/df-mc/dragonfly => github.com/shawtymarco/dragonfly v0.11.3-0.20260920122635-c88cc7e88845
 
-replace github.com/sandertv/gophertunnel => github.com/shawtymarco/gophertunnel v1.57.1-0.20260824230810-823172d1d90e
+replace github.com/sandertv/gophertunnel => github.com/shawtymarco/gophertunnel v1.57.1-0.20260920121432-bb499bd61306
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -30,7 +30,7 @@ require (
 	github.com/df-mc/go-xsapi/v2 v2.0.3 // indirect
 	github.com/df-mc/goleveldb v1.1.9 // indirect
 	github.com/df-mc/jsonc v1.0.5 // indirect
-	github.com/df-mc/worldupgrader v1.0.21 // indirect
+	github.com/df-mc/worldupgrader v1.0.22 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-gl/mathgl v1.2.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
@@ -57,7 +57,6 @@ require (
 	github.com/wlynxg/anet v0.0.5 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/exp v0.0.0-20260718201538-764159d718ef // indirect
-	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
