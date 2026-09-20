@@ -17,7 +17,7 @@ replace github.com/cooldogedev/spectrum => github.com/shawtymarco/spectrum v0.0.
 
 replace github.com/cooldogedev/spectral => github.com/shawtymarco/spectral v0.0.0-20260920155624-33c15697d1d2
 
-replace github.com/df-mc/dragonfly => github.com/shawtymarco/dragonfly v0.11.3-0.20260920170400-dd55aa6ffa01
+replace github.com/df-mc/dragonfly => github.com/shawtymarco/dragonfly v0.11.3-0.20260920182837-22545660b36a
 
 replace github.com/sandertv/gophertunnel => github.com/shawtymarco/gophertunnel v1.57.1-0.20260920121432-bb499bd61306
 

@@ -92,8 +92,8 @@ github.com/sandertv/go-raknet v1.15.2-0.20260705184311-0d1fd09e2cf6 h1:Oj7QsiwWT
 github.com/sandertv/go-raknet v1.15.2-0.20260705184311-0d1fd09e2cf6/go.mod h1:/yysjwfCXm2+2OY8mBazLzcxJ3irnylKCyG3FLgUPVU=
 github.com/segmentio/fasthash v1.0.3 h1:EI9+KE1EwvMLBWwjpRDc+fEM+prwxDYbslddQGtrmhM=
 github.com/segmentio/fasthash v1.0.3/go.mod h1:waKX8l2N8yckOgmSsXJi7x1ZfdKZ4x7KRMzBtS3oedY=
-github.com/shawtymarco/dragonfly v0.11.3-0.20260920170400-dd55aa6ffa01 h1:7e4y6jiysq9ejRLbmIEniHg/xKCZTxH9LVBkaCszIcQ=
-github.com/shawtymarco/dragonfly v0.11.3-0.20260920170400-dd55aa6ffa01/go.mod h1:edW4tJmnTBFEAsyq0i+jNANDQVdPHmdbqBQpkHVXhWw=
+github.com/shawtymarco/dragonfly v0.11.3-0.20260920182837-22545660b36a h1:Oq5qXhJ8jeN5RCZRGt9Orz1vTtrbVWop9ENDxM/Y9kM=
+github.com/shawtymarco/dragonfly v0.11.3-0.20260920182837-22545660b36a/go.mod h1:edW4tJmnTBFEAsyq0i+jNANDQVdPHmdbqBQpkHVXhWw=
 github.com/shawtymarco/gophertunnel v1.57.1-0.20260920121432-bb499bd61306 h1:9b+ZBqK/bKZKg4O5UROPLknlgJBCNuGdCKeXnNFCFsM=
 github.com/shawtymarco/gophertunnel v1.57.1-0.20260920121432-bb499bd61306/go.mod h1:JMKsf8DmVmn+qEVJ1IA9m7zEo9qHJ3ZN6IEvySEk9bs=
 github.com/shawtymarco/spectral v0.0.0-20260920155624-33c15697d1d2 h1:8JV5f530yzw81anlMYwIUdC5TGD2Trpt7Hcf4euvmfA=
