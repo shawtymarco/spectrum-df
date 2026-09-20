@@ -13,7 +13,8 @@ client protocol to Dragonfly for target-aware chunk palette encoding.
 
 | Protocol ID | Minecraft version | Backend wire | BRBW automated E2E |
 |------------:|-------------------|:------------:|:------------------:|
-| 2169 | 1.26.45 | Native | ✅ |
+| 2193 | 1.26.50 (`all_26_u5`) | Native | ✅ |
+| 2169 | 1.26.45 | Native + adapter context | ✅ |
 | 2168 | 1.26.40-1.26.44 | Native + adapter context | ✅ |
 | 1001 | 1.26.30-1.26.34, 1.26.36 | Native + adapter context | ✅ |
 | 975 | 1.26.20, 1.26.21, 1.26.23 | Native + adapter context | ✅ |
