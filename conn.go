@@ -53,7 +53,7 @@ type conn struct {
 	runtimeID    uint64
 	uniqueID     int64
 	shieldID     int32
-	latency      atomic.Value
+	latency      atomic.Pointer[Latency]
 	pool         packet.Pool
 	proto        minecraft.Protocol
 	onClose      func()
@@ -113,7 +113,6 @@ func newConn(rwc io.ReadWriteCloser, pool packet.Pool, resolver ProtocolResolver
 		return nil, err
 	}
 	setCache(c.identityData.XUID, connectionRequest.Cache, connectionRequest.ProtocolID)
-	c.latency.Store(time.Duration(0))
 	return c, nil
 }
 
@@ -125,11 +124,11 @@ func (c *conn) ReadPacket() (packet.Packet, error) {
 	}
 
 	if pk, ok := pk.(*spectrumpacket.Latency); ok {
-		halfRTT, roundTrip := latencySample(pk.Latency, pk.Timestamp, time.Now().UnixMilli())
+		sample := latencyComponents(pk.Latency, pk.Timestamp, time.Now().UnixMilli())
 		// Dragonfly's Conn.Latency contract is one-way latency. Player-facing
 		// ping commands multiply it by two to display RTT.
-		c.latency.Store(halfRTT)
-		_ = c.WritePacket(&spectrumpacket.Latency{Timestamp: 0, Latency: roundTrip})
+		c.latency.Store(&sample)
+		_ = c.WritePacket(&spectrumpacket.Latency{Timestamp: 0, Latency: sample.RoundTrip().Milliseconds()})
 		return c.ReadPacket()
 	}
 	return pk, nil
@@ -164,6 +163,11 @@ func (c *conn) WritePacketTraceResult(result dfsession.PacketTraceResult) error 
 }
 
 func latencySample(clientRTT, sentAt, receivedAt int64) (halfRTT time.Duration, roundTrip int64) {
+	sample := latencyComponents(clientRTT, sentAt, receivedAt)
+	return sample.RoundTrip() / 2, sample.RoundTrip().Milliseconds()
+}
+
+func latencyComponents(clientRTT, sentAt, receivedAt int64) Latency {
 	if clientRTT < 0 {
 		clientRTT = 0
 	}
@@ -171,8 +175,7 @@ func latencySample(clientRTT, sentAt, receivedAt int64) (halfRTT time.Duration, 
 	if backendOneWay < 0 {
 		backendOneWay = 0
 	}
-	roundTrip = clientRTT + backendOneWay*2
-	return time.Duration(roundTrip) * time.Millisecond / 2, roundTrip
+	return Latency{Client: time.Duration(clientRTT) * time.Millisecond, Backend: time.Duration(backendOneWay) * 2 * time.Millisecond}
 }
 
 // WritePacket ...
@@ -240,7 +243,10 @@ func (c *conn) RemoteAddr() net.Addr {
 
 // Latency ...
 func (c *conn) Latency() time.Duration {
-	return c.latency.Load().(time.Duration)
+	if sample := c.latency.Load(); sample != nil {
+		return sample.RoundTrip() / 2
+	}
+	return 0
 }
 
 // StartGameContext ...
