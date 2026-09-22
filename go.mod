@@ -13,13 +13,13 @@ require (
 	github.com/sandertv/gophertunnel v1.62.0
 )
 
-replace github.com/cooldogedev/spectrum => github.com/shawtymarco/spectrum v0.0.45-0.20260920170618-79fb9c4d1494
+replace github.com/cooldogedev/spectrum => github.com/shawtymarco/spectrum v0.0.45-0.20260922105006-2870c213092a
 
 replace github.com/cooldogedev/spectral => github.com/shawtymarco/spectral v0.0.0-20260920155624-33c15697d1d2
 
-replace github.com/df-mc/dragonfly => github.com/shawtymarco/dragonfly v0.11.3-0.20260920182837-22545660b36a
+replace github.com/df-mc/dragonfly => github.com/shawtymarco/dragonfly v0.11.3-0.20260922105009-649b917ad9d6
 
-replace github.com/sandertv/gophertunnel => github.com/shawtymarco/gophertunnel v1.57.1-0.20260920121432-bb499bd61306
+replace github.com/sandertv/gophertunnel => github.com/shawtymarco/gophertunnel v1.57.1-0.20260922085529-a20f77b43ff5
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
