@@ -102,8 +102,8 @@ github.com/shawtymarco/gophertunnel v1.57.1-0.20260922085529-a20f77b43ff5 h1:m4k
 github.com/shawtymarco/gophertunnel v1.57.1-0.20260922085529-a20f77b43ff5/go.mod h1:JMKsf8DmVmn+qEVJ1IA9m7zEo9qHJ3ZN6IEvySEk9bs=
 github.com/shawtymarco/spectral v0.0.0-20260920155624-33c15697d1d2 h1:8JV5f530yzw81anlMYwIUdC5TGD2Trpt7Hcf4euvmfA=
 github.com/shawtymarco/spectral v0.0.0-20260920155624-33c15697d1d2/go.mod h1:Oq9dVLgqaRiS/hZvKvLk/XWXFOZmmTKM29u6o4GBe84=
-github.com/shawtymarco/spectrum v0.0.45-0.20260922105006-2870c213092a h1:iqk4T3XGdPNo7ooEsErYmv7gMreoh9/HEPaAh+/AODk=
-github.com/shawtymarco/spectrum v0.0.45-0.20260922105006-2870c213092a/go.mod h1:YGy4a7ibN4q3h33ccDIlf7DOWTfnNjXMI8cW930PHLY=
+github.com/shawtymarco/spectrum v0.0.45-0.20260923032513-6c2de433179d h1:aaeDZz07gr8rcsFjGY15d1SaDq5393NOiOv7xQrfpoc=
+github.com/shawtymarco/spectrum v0.0.45-0.20260923032513-6c2de433179d/go.mod h1:YGy4a7ibN4q3h33ccDIlf7DOWTfnNjXMI8cW930PHLY=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/wlynxg/anet v0.0.5 h1:J3VJGi1gvo0JwZ/P1/Yc/8p63SoW98B5dHkYDmpgvvU=

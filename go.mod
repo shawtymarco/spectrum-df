@@ -13,7 +13,7 @@ require (
 	github.com/sandertv/gophertunnel v1.62.0
 )
 
-replace github.com/cooldogedev/spectrum => github.com/shawtymarco/spectrum v0.0.45-0.20260922105006-2870c213092a
+replace github.com/cooldogedev/spectrum => github.com/shawtymarco/spectrum v0.0.45-0.20260923032513-6c2de433179d
 
 replace github.com/cooldogedev/spectral => github.com/shawtymarco/spectral v0.0.0-20260920155624-33c15697d1d2
 
