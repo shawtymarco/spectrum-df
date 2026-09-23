@@ -251,7 +251,7 @@ func (c *conn) Latency() time.Duration {
 
 // StartGameContext ...
 func (c *conn) StartGameContext(ctx context.Context, data minecraft.GameData) (err error) {
-	ctx, cancel := context.WithTimeout(ctx, defaultHandshakeTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultSpawnTimeout)
 	defer cancel()
 	started, phase := time.Now(), "start_game"
 	closed := make(chan struct{})
@@ -271,7 +271,7 @@ func (c *conn) StartGameContext(ctx context.Context, data minecraft.GameData) (e
 			err = fmt.Errorf("spawn handshake %s: %w", phase, err)
 			slog.Warn("SpectrumDF spawn handshake failed", "player", c.identityData.Identity,
 				"protocol_id", c.proto.ID(), "phase", phase,
-				"duration_ms", time.Since(started).Milliseconds(), "err", err)
+				"duration_ms", time.Since(started).Milliseconds(), "timeout_ms", defaultSpawnTimeout.Milliseconds(), "err", err)
 		}
 	}()
 	for _, item := range data.Items {

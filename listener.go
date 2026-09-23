@@ -21,7 +21,7 @@ type Listener struct {
 	transport tr.Transport
 	resolver  ProtocolResolver
 	connect   func(io.ReadWriteCloser, packet.Pool, ProtocolResolver) (*conn, error)
-	sessions  sync.Map
+	sessions  connectionRegistry
 	startOnce sync.Once
 	closeOnce sync.Once
 	ctx       context.Context

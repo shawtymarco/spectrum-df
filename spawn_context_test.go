@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	spectrumprotocol "github.com/cooldogedev/spectrum/protocol"
@@ -17,6 +18,83 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
+
+// The edge completes the public client's StartGame before acknowledging spawn
+// to SpectrumDF. A mobile client may legitimately take longer than the private
+// connection-request deadline to initialise its world.
+func TestSpawnHandshakeWaitsForSlowPublicClient(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c, peer, result := pendingSpawnHandshake(t)
+		time.Sleep(11 * time.Second)
+		select {
+		case err := <-result:
+			t.Fatalf("backend abandoned public client before its spawn budget: %v", err)
+		default:
+		}
+		writeSpawnResponse(t, peer, &packet.SetLocalPlayerAsInitialised{})
+		if err := <-result; err != nil {
+			t.Fatalf("slow public client could not complete spawn: %v", err)
+		}
+		select {
+		case <-c.closed:
+			t.Fatal("successful slow spawn closed the backend")
+		default:
+		}
+	})
+}
+
+func TestSpawnHandshakeStillBoundsUnresponsivePublicClient(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		started := time.Now()
+		_, peer, result := pendingSpawnHandshake(t)
+		err := <-result
+		if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "player_initialised") {
+			t.Fatalf("unresponsive spawn lost timeout or phase: %v", err)
+		}
+		if elapsed := time.Since(started); elapsed != time.Minute {
+			t.Fatalf("public spawn budget = %v, want one minute", elapsed)
+		}
+		if _, err := peer.Read(make([]byte, 1)); !errors.Is(err, io.EOF) {
+			t.Fatalf("timed-out stream remained open: %v", err)
+		}
+	})
+}
+
+func pendingSpawnHandshake(t *testing.T) (*conn, net.Conn, <-chan error) {
+	t.Helper()
+	stream, peer := net.Pipe()
+	t.Cleanup(func() { _ = peer.Close() })
+	c := &conn{conn: stream, reader: spectrumprotocol.NewReader(stream), writer: spectrumprotocol.NewWriter(stream),
+		pool: packet.NewClientPool(), proto: minecraft.DefaultProtocol, closed: make(chan struct{})}
+	t.Cleanup(func() { _ = c.Close() })
+	result := make(chan error, 1)
+	go func() { result <- c.StartGameContext(context.Background(), minecraft.GameData{}) }()
+	reader := spectrumprotocol.NewReader(peer)
+	read := func() {
+		t.Helper()
+		if _, err := reader.ReadPacket(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read() // StartGame
+	read() // ItemRegistry
+	writeSpawnResponse(t, peer, &packet.RequestChunkRadius{ChunkRadius: 16})
+	read() // ChunkRadiusUpdated
+	read() // PlayStatus
+	return c, peer, result
+}
+
+func writeSpawnResponse(t *testing.T, peer io.Writer, pk packet.Packet) {
+	t.Helper()
+	var encoded bytes.Buffer
+	if err := (&packet.Header{PacketID: pk.ID()}).Write(&encoded); err != nil {
+		t.Fatal(err)
+	}
+	pk.Marshal(protocol.NewWriter(&encoded, 0))
+	if err := spectrumprotocol.NewWriter(peer).Write(snappy.Encode(nil, encoded.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestSpawnHandshakeCancellationClosesBlockedIO(t *testing.T) {
 	for _, readBootstrap := range []bool{false, true} {

@@ -264,7 +264,7 @@ func TestListenerTransferWritesInternalPacket(t *testing.T) {
 	}
 	l := &Listener{}
 	l.sessions.Store(identity, c)
-	c.onClose = func() { l.sessions.CompareAndDelete(identity, c) }
+	c.onClose = func() { l.sessions.Remove(identity, c) }
 	if !l.HasSession(identity) {
 		t.Fatal("listener did not report the active session")
 	}

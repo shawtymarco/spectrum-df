@@ -15,6 +15,10 @@ import (
 const (
 	defaultHandshakeTimeout = 10 * time.Second
 	defaultHandshakeLimit   = 64
+	// The private connection request is quick, but spawn includes the edge's
+	// public-client StartGame, whose budget is one minute (including mobile
+	// world initialisation). Do not close the backend after only ten seconds.
+	defaultSpawnTimeout = time.Minute
 )
 
 func (l *Listener) start() {
@@ -109,7 +113,7 @@ func (l *Listener) handshake(stream *handshakeStream) {
 		var identity uuid.UUID
 		identity, err = uuid.Parse(c.IdentityData().Identity)
 		if err == nil {
-			c.onClose = func() { l.sessions.CompareAndDelete(identity, c) }
+			c.onClose = func() { l.sessions.Remove(identity, c) }
 			l.sessions.Store(identity, c)
 			phase = "accept_delivery"
 			select {
