@@ -44,7 +44,7 @@ var headerPool = sync.Pool{
 }
 
 type conn struct {
-	addr         *net.UDPAddr
+	addr         net.Addr
 	conn         io.ReadWriteCloser
 	reader       *spectrumprotocol.Reader
 	writer       *spectrumprotocol.Writer
@@ -80,7 +80,7 @@ func newConn(rwc io.ReadWriteCloser, pool packet.Pool, resolver ProtocolResolver
 	}
 
 	connectionRequest, _ := connectionRequestPacket.(*spectrumpacket.ConnectionRequest)
-	addr, err := net.ResolveUDPAddr("udp", connectionRequest.Addr)
+	addr, err := parsePublicAddress(connectionRequest.Addr)
 	if err != nil {
 		_ = c.Close()
 		return nil, err
