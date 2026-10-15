@@ -94,7 +94,7 @@ func TestIncompleteHandshakeTimesOutAndLogsPhase(t *testing.T) {
 			l.start()
 			if partial {
 				// A complete length header followed by no payload must be bounded too.
-				if err := binary.Write(peer, binary.LittleEndian, uint32(128)); err != nil {
+				if err := binary.Write(peer, binary.BigEndian, uint32(128)); err != nil {
 					t.Fatal(err)
 				}
 			}
