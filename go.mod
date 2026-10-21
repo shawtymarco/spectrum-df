@@ -10,14 +10,14 @@ require (
 	github.com/golang/snappy v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/quic-go/quic-go v0.60.0
-	github.com/sandertv/gophertunnel v1.62.0
+	github.com/sandertv/gophertunnel v1.62.1-0.20261006171356-28a5eec10daf
 )
 
-replace github.com/cooldogedev/spectrum => github.com/shawtymarco/spectrum v0.0.45-0.20261011160243-e8cb3a96a9f6
+replace github.com/cooldogedev/spectrum => github.com/shawtymarco/spectrum v0.0.45-0.20261021211728-b2ded5db16bb
 
 replace github.com/cooldogedev/spectral => github.com/shawtymarco/spectral v0.0.0-20260920155624-33c15697d1d2
 
-replace github.com/df-mc/dragonfly => github.com/shawtymarco/dragonfly v0.11.3-0.20261011160104-492f88730cc5
+replace github.com/df-mc/dragonfly => github.com/shawtymarco/dragonfly v0.11.3-0.20261021211727-9b2db6a4ff7e
 
 replace github.com/sandertv/gophertunnel => github.com/shawtymarco/gophertunnel v1.57.1-0.20261011160103-4d6bffd4ed49
 
